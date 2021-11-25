@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import download from "downloadjs";
 import axios from "axios";
 import { API_URL } from "../utils/constants";
+var RNFS = require('react-native-fs');
 
 const FilesList = () => {
 	const [filesList, setFilesList] = useState([]);
@@ -37,6 +38,20 @@ const FilesList = () => {
 		}
 	};
 
+	const deleteFiles = async (id, filepath) => {
+		try {
+			await axios.get(`${API_URL}/list/${id}`)
+				.then(res => console.log(res.data));
+			console.log(filepath);
+			this.setFilesList({ filesList: this.state.filesList.filter(el => el._id !== id) });
+			await RNFS.unlink(filepath);
+		} catch (error) {
+			if (error.response && error.response.status === 400) {
+				setErrorMsg("Deleting file");
+			}
+		}
+	};
+
 	return (
 		<div className="files-container">
 			{errorMsg && <p className="errorMsg">{errorMsg}</p>}
@@ -63,6 +78,14 @@ const FilesList = () => {
 											}
 										>
 											Download
+										</a>
+										<a
+											href="#/"
+											onClick={() =>
+												deleteFiles(_id, file_path)
+											}
+										>
+											Delete
 										</a>
 									</td>
 								</tr>

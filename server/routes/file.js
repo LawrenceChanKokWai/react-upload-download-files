@@ -4,6 +4,15 @@ const multer = require("multer");
 const File = require("../model/file");
 const Router = express.Router();
 
+const fs = require('fs');
+function getFilesInDirectory() {
+	console.log("\nFiles present in directory:");
+	let files = fs.readdirSync(__dirname);
+	files.forEach(file => {
+		console.log(file);
+	});
+}
+
 const upload = multer({
 	storage: multer.diskStorage({
 		destination(req, file, cb) {
@@ -73,6 +82,21 @@ Router.get("/download/:id", async (req, res) => {
 			"Content-Type": file.file_mimetype,
 		});
 		res.sendFile(path.join(__dirname, "..", file.file_path));
+	} catch (error) {
+		res.status(400).send("Error while downloading file. Try again later.");
+	}
+});
+
+Router.get("/list/:id/:filepath", async (req, res) => {
+	try {
+		// const id = req.params.id;
+		await File.findByIdAndDelete(req.params.id);
+		getFilesInDirectory();
+
+		fs.unlink(req.params.filepath, err => {
+			if (err) throw err;
+		});
+		res.json('File deleted');
 	} catch (error) {
 		res.status(400).send("Error while downloading file. Try again later.");
 	}
