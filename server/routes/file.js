@@ -3,28 +3,25 @@ const express = require("express");
 const multer = require("multer");
 const File = require("../model/file");
 const Router = express.Router();
-
 const fs = require('fs');
-function getFilesInDirectory() {
-	console.log("\nFiles present in directory:");
-	let files = fs.readdirSync(__dirname);
-	files.forEach(file => {
-		console.log(file);
-	});
-}
+
+const AWS = require('aws-sdk');
+AWS.config.update(
+	{
+		accessKeyId: "AKIAWCMLHHBROE7GX57K",
+		secretAccessKey: "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",
+		region: 'ap-southeast-1'
+	}
+);
+
+var s3 = new AWS.S3();
 
 const upload = multer({
 	storage: multer.diskStorage({
-		destination(req, file, cb) {
-			cb(null, "./files");
-		},
 		filename(req, file, cb) {
 			cb(null, `${new Date().getTime()}_${file.originalname}`);
 		},
 	}),
-	limits: {
-		fileSize: 1000000, // max file size 1MB = 1000000 bytes
-	},
 	fileFilter(req, file, cb) {
 		if (!file.originalname.match(/\.(jpeg|jpg|png|pdf|doc|docx|xlsx|xls)$/)) {
 			return cb(
@@ -37,25 +34,23 @@ const upload = multer({
 	},
 });
 
-Router.post(
-	"/upload",
-	upload.single("file"),
-	async (req, res) => {
-		try {
-			const { title, description } = req.body;
-			const { path, mimetype } = req.file;
-			const file = new File({
-				title,
-				description,
-				file_path: path,
-				file_mimetype: mimetype,
-			});
-			await file.save();
-			res.send("file uploaded successfully.");
-		} catch (error) {
-			res.status(400).send("Error while uploading file. Try again later.");
-		}
-	},
+Router.post("/upload", upload.single("file"), async (req, res) => {
+	try {
+		const { title, description } = req.body;
+		const { path, mimetype } = req.file;
+		const file = new File({
+			title,
+			description,
+			file_name: req.file.originalname,
+			file_path: path,
+			file_mimetype: mimetype,
+		});
+		await file.save();
+		res.send("file uploaded successfully.");
+	} catch (error) {
+		res.status(400).send("Error while uploading file. Try again later.");
+	}
+},
 	(error, req, res, next) => {
 		if (error) {
 			res.status(500).send(error.message);
@@ -81,22 +76,33 @@ Router.get("/download/:id", async (req, res) => {
 		res.set({
 			"Content-Type": file.file_mimetype,
 		});
-		res.sendFile(path.join(__dirname, "..", file.file_path));
+		console.log(`${file.file_name}`);
+
+		const options = {
+			Bucket: 'upload-test-file',
+			Key: file.file_name,
+		};
+
+		const fileStream = s3.getObject(options).createReadStream();
+		fileStream.pipe(res);
+
 	} catch (error) {
 		res.status(400).send("Error while downloading file. Try again later.");
 	}
 });
 
-Router.get("/list/:id/:filepath", async (req, res) => {
+Router.get("/list/:id", async (req, res) => {
 	try {
 		// const id = req.params.id;
-		await File.findByIdAndDelete(req.params.id);
-		getFilesInDirectory();
+		const file = await File.findById(req.params.id);
+		var params = { Bucket: 'upload-test-file', Key: file.file_name };
 
-		fs.unlink(req.params.filepath, err => {
-			if (err) throw err;
+		s3.deleteObject(params, function (err, data) {
+			if (err) console.log(err, err.stack);  // error
+			else console.log();                 // deleted
 		});
-		res.json('File deleted');
+		await File.findByIdAndDelete(req.params.id);
+		window.location.reload();
 	} catch (error) {
 		res.status(400).send("Error while downloading file. Try again later.");
 	}

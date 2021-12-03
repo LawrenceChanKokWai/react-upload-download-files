@@ -3,6 +3,14 @@ import { Form, Row, Col, Button } from "react-bootstrap";
 import Dropzone from "react-dropzone";
 import axios from "axios";
 import { API_URL } from "../utils/constants";
+import S3FileUpload from 'react-s3';
+
+const config = {
+	bucketName: 'upload-test-file',
+	region: 'ap-southeast-1',
+	accessKeyId: 'AKIAWCMLHHBROE7GX57K',
+	secretAccessKey: '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',
+}
 
 const App = (props) => {
 	const [file, setFile] = useState(null); // state for storing actual image
@@ -54,6 +62,11 @@ const App = (props) => {
 					formData.append("file", file);
 					formData.append("title", title);
 					formData.append("description", description);
+
+					S3FileUpload
+						.uploadFile(file, config)
+						.then(data => console.log(data))
+						.catch(err => console.error(err))
 
 					setErrorMsg("");
 					await axios.post(`${API_URL}/upload`, formData, {
